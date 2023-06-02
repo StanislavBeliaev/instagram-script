@@ -9,6 +9,28 @@ function extractItems() {
     return items;
   };
 
+  async function scrapeItems(
+    page,
+    extractItems,
+    itemCount,
+    scrollDelay = 800,
+  ) {
+    let items = [];
+    try {
+      let previousHeight;
+      let selector;
+      while (items.length < itemCount) {
+        items = await page.evaluate(extractItems);
+        selector = await page.querySelectorAll('._aano')[0];
+        previousHeight = await page.evaluate(selector.scrollHeight);
+        await page.evaluate('window.scrollTo(0, selector.scrollHeight)');
+        await page.waitForFunction(`selector.scrollHeight > ${previousHeight}`);
+        await page.waitForTimeout(scrollDelay);
+      }
+    } catch(e) { }
+    return console.log(items);
+  };
+
 (async () =>{
     const browser = await puppeteer.launch({headless:false});
     const page = await browser.newPage();
@@ -25,8 +47,9 @@ function extractItems() {
        await followerList.evaluate(followerList => followerList.click());
 
 
-       const followerListIsOpen = await page.waitForSelector('._aano');
-       await followerListIsOpen.evaluate(followerListIsOpen => followerListIsOpen.scrollBy(0,1000));
+       const followerListIsOpen = await page.waitForSelector('._aano > div:nth-child(1) > div:nth-child(1) div.xt0psk2 a');
+      //  await followerListIsOpen.evaluate(extractItems);
+      const items = await scrapeItems(page, extractItems, 100);
        
        
 })();
