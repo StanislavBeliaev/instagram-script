@@ -1,55 +1,99 @@
-import puppeteer  from "puppeteer";
+import puppeteer from "puppeteer";
+import "dotenv/config";
+
+const FOLLOWING = "following/";
+const FOLLOWERS = "followers/";
+
+const INST_WEBSITE = "https://www.instagram.com/";
 
 function extractItems() {
-    const extractedElements = document.querySelectorAll('._aano > div:nth-child(1) > div:nth-child(1) div.xt0psk2 a');
-    const items = [];
-    for (let element of extractedElements) {
+  const extractedElements = document.querySelectorAll(
+    'div[role="dialog"] a[role="link"]'
+  );
+  const items = [];
+  for (let element of extractedElements) {
+    if (element.innerText) {
       items.push(element.innerText);
     }
-    return items;
-  };
+  }
+  return items;
+}
 
-  async function scrapeItems(
-    page,
-    extractItems,
-    itemCount,
-    scrollDelay = 800,
-  ) {
-    let items = [];
-    try {
-      let previousHeight;
-      let selector;
-      while (items.length < itemCount) {
-        items = await page.evaluate(extractItems);
-        selector = await page.querySelectorAll('._aano')[0];
-        previousHeight = await page.evaluate(selector.scrollHeight);
-        await page.evaluate('window.scrollTo(0, selector.scrollHeight)');
-        await page.waitForFunction(`selector.scrollHeight > ${previousHeight}`);
-        await page.waitForTimeout(scrollDelay);
+async function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function login(page) {
+  await page.waitForSelector("input[name='username']");
+  await page.type("input[name='username']", process.env.INST_LOGIN);
+  await page.type("input[name='password']", process.env.INST_PASSWORD);
+  await page.click("button[type='submit']");
+  await page.waitForSelector(`img[alt$='${process.env.INST_LOGIN}']`);
+  await page.click(`img[alt$='${process.env.INST_LOGIN}']`);
+}
+
+async function goToProfile(page) {
+  await page.waitForSelector(`img[alt$='${process.env.INST_LOGIN}']`);
+  await page.click(`img[alt$='${process.env.INST_LOGIN}']`);
+}
+
+async function getListOfItems(page, type) {
+  await page.waitForSelector(`a[href*='/${process.env.INST_LOGIN}/${type}']`);
+  await page.click(`a[href*='/${process.env.INST_LOGIN}/${type}']`);
+
+  await page.waitForSelector('div[role="dialog"]');
+
+  await autoScrollDialog(page);
+
+  const items = await page.evaluate(extractItems);
+  console.log(items);
+
+  await page.click('div[role="dialog"] svg[aria-label="Закрыть"]')
+  return items;
+}
+
+async function autoScrollDialog(page) {
+  await page.evaluate(async () => {
+    let lastHeight = 0;
+
+    async function scroll(container, currentHeight) {
+      container.scrollTo(0, container.scrollHeight);
+      await new Promise((resolve) => setTimeout(resolve, 800));
+      if (currentHeight !== container.scrollHeight) {
+        await scroll(container, container.scrollHeight);
       }
-    } catch(e) { }
-    return console.log(items);
-  };
+    }
 
-(async () =>{
-    const browser = await puppeteer.launch({headless:false});
-    const page = await browser.newPage();
+    const scrollContainer = document.querySelector("._aano");
+    await scroll(scrollContainer, lastHeight);
+  });
+}
 
-    await page.goto('https://www.instagram.com/');
+async function acceptCookies(page) {
+  await page.waitForSelector('div[role="dialog"]');
+  await page.click('div[role="dialog"] button[tabIndex="0"]:last-child');
+}
 
-    await page.setViewport({width:1920, height:1080});
+(async () => {
+  const browser = await puppeteer.launch({ headless: false });
+  const page = await browser.newPage();
 
-       const profile = await page.waitForSelector('div.x1iyjqo2:nth-child(2) > div:nth-child(8) > div:nth-child(1) > div:nth-child(1) > a:nth-child(1)');
-       await profile.evaluate(profile => profile.click());
+  await page.goto(INST_WEBSITE);
 
+  await page.setViewport({ width: 1366, height: 768 });
 
-       const followerList = await page.waitForSelector('li.xl565be:nth-child(2) > a:nth-child(1)');
-       await followerList.evaluate(followerList => followerList.click());
+  await acceptCookies(page);
 
+  await delay(2000);
 
-       const followerListIsOpen = await page.waitForSelector('._aano > div:nth-child(1) > div:nth-child(1) div.xt0psk2 a');
-      //  await followerListIsOpen.evaluate(extractItems);
-      const items = await scrapeItems(page, extractItems, 100);
-       
-       
+  await login(page);
+
+  await delay(1000);
+
+  await goToProfile(page);
+
+  await delay(1000);
+
+  const followers = await getListOfItems(page, FOLLOWERS);
+  const following = await getListOfItems(page, FOLLOWING);
 })();
