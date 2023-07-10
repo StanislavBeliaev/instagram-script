@@ -123,9 +123,9 @@ async function unSubscribe(page,type,names){
         await page.click('._acan._acap._acaq._acat._aj1-');
         //после всплывет еще 1 модальное окно в котором уже ждем селектор кнопки "Отменить подписку"
         await page.waitForSelector('._a9--._a9-_');
-        await delay(1000);
+        await delay(2000);
         await page.click('._a9--._a9-_');
-        await delay(1000);
+        await delay(2000);
         console.log('вы отписались от:', name)
         unSubs.push(name)
       }
@@ -134,6 +134,21 @@ async function unSubscribe(page,type,names){
   return unSubs;
 }
 
+function addzero(value){
+  if (value < 10){
+    value = '0' + value;
+  }
+  return value;
+}
+function date_time1(){
+  const current_datetime = new Date();
+  const day = addzero(current_datetime.getDate());
+  const month = addzero(current_datetime.getMonth()+1);
+  const year = current_datetime.getFullYear();
+  const hours = addzero(current_datetime.getHours());
+  const minutes = addzero(current_datetime.getMinutes());
+  return year+"-"+month+"-"+day+"-"+hours+"-"+minutes
+}
 (async () => {
   const browser = await puppeteer.launch({ headless: false });
   const page = await browser.newPage();
@@ -158,6 +173,7 @@ async function unSubscribe(page,type,names){
   const following = await getListOfItems(page, FOLLOWING);
   const different = await findMissingNames(following,followers);
   const unSub = await unSubscribe(page,FOLLOWING,different);
-  fs.writeFileSync('./report_date_time.csv', unSub.join('\n') + '\n');
+  const currentTime = date_time1();
+  fs.writeFileSync(`reports/Report_${currentTime}.csv`, unSub.join('\n') + '\n');
 
 })();
