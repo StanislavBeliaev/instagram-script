@@ -1,5 +1,8 @@
 import puppeteer from "puppeteer";
+import fs from "fs";
 import "dotenv/config";
+
+
 
 const FOLLOWING = "following/";
 const FOLLOWERS = "followers/";
@@ -100,39 +103,35 @@ async function findMissingNames(arr1, arr2) {
 }
 
 async function unSubscribe(page,type,names){
+  const unSubs = [];
   await page.waitForSelector(`a[href*='/${process.env.INST_LOGIN}/${type}']`);
   await page.click(`a[href*='/${process.env.INST_LOGIN}/${type}']`);
 
   await page.waitForSelector('div[role="dialog"]');
 
   for (const name of names){
+    
     const nameElement = await page.$(
       `._aano > div:nth-child(1) > div:nth-child(1) div.xt0psk2 a[href*='/${name}/']`
     );
       if(nameElement){
-        await nameElement.click();
-
-        await page.waitForTimeout(3000);
-        //ожидания селектора кнопки "Подписки"
-        await page.waitForSelector('button._acan');
-        //нажатие на кнопку "Подписки"
-        await page.waitForTimeout(3000);
-        await page.click('button._acan');
-        await page.waitForTimeout(3000);
-        //ожидание модального окна
-        await page.waitForSelector('div[role="dialog"]');
-        await page.waitForTimeout(3000);
-        //нажатие на кнопку отписаться
-        await page.click('div[role="dialog"] div[role="button"]:last-child');
-        console.log('Вы отписались от:', name);
-        //Ожидание отписки
-
-
-        await page.goBack();
-        console.log('вы вернулись')
+        //наводим мышку на имя того на кого подписаны и кто не подписан на нас для того чтобы всплыло модальное окно
+        await nameElement.hover();
+        await delay(2000);
+        //ожидаем появления селектора кнопки "Подписки" в модальном окне
+        await page.waitForSelector('._acan._acap._acaq._acat._aj1-');
+        await page.click('._acan._acap._acaq._acat._aj1-');
+        //после всплывет еще 1 модальное окно в котором уже ждем селектор кнопки "Отменить подписку"
+        await page.waitForSelector('._a9--._a9-_');
+        await delay(1000);
+        await page.click('._a9--._a9-_');
+        await delay(1000);
+        console.log('вы отписались от:', name)
+        unSubs.push(name)
       }
       
   }
+  return unSubs;
 }
 
 (async () => {
@@ -159,5 +158,6 @@ async function unSubscribe(page,type,names){
   const following = await getListOfItems(page, FOLLOWING);
   const different = await findMissingNames(following,followers);
   const unSub = await unSubscribe(page,FOLLOWING,different);
+  fs.writeFileSync('./report_date_time.csv', unSub.join('\n') + '\n');
 
 })();
